@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: camunda
+      MYSQL_USER: camunda
+      MYSQL_PASSWORD: camunda
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+  zeebe:
+    image: camunda/zeebe:8.6.7
+    container_name: zeebe
+    ports:
+      - "26500:26500"
+#      - "9600:9600"
+    environment:
+      - ZEEBE_BROKER_GATEWAY_ENABLE=true
+      - ZEEBE_BROKER_NETWORK_HOST=0.0.0.0
+      - ZEEBE_BROKER_GATEWAY_NETWORK_HOST=0.0.0.0

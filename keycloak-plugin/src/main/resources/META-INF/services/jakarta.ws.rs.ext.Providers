@@ -1,0 +1,2 @@
+com.company.accessManagement.exception.UnauthorizedExceptionMapper
+com.company.accessManagement.exception.DuplicateRequestExceptionMapper

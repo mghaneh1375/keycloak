@@ -1,0 +1,37 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# =========================
+# Java / Maven
+# =========================
+
+target/
+*.class
+
+
+# =========================
+# Temporary files
+# =========================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+
+temp/
+tmp/
+
+# =========================
+# Backup files
+# =========================
+
+*.bak
+*.backup
+*~
