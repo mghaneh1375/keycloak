@@ -1,67 +1,54 @@
 package com.company.accessManagement.provider;
 
-import com.company.accessManagement.grant.ResourceGrantHandler;
-import com.company.accessManagement.grant.RoleGrantHandler;
+import com.company.accessManagement.grant.*;
 import com.company.accessManagement.messaging.AccessGrantConsumer;
 import com.company.accessManagement.service.AccessGrantService;
 import org.keycloak.Config;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.services.resource.RealmResourceProvider;
-import org.keycloak.services.resource.RealmResourceProviderFactory;
+import org.keycloak.models.*;
+import org.keycloak.services.resource.*;
 
 import java.util.List;
 
+/**
+ * Retains the SPI lifecycle solely for grant consumption; intake endpoints are retired.
+ */
 public class AccessRealmResourceProviderFactory implements RealmResourceProviderFactory {
-
-    public static final String ID = "access";
     private AccessGrantConsumer consumer;
 
     @Override
-    public RealmResourceProvider create(KeycloakSession session) {
-        return new AccessRealmResourceProvider(session);
+    public String getId() {
+        return "access";
     }
 
     @Override
-    public String getId() {
-        return ID;
+    public RealmResourceProvider create(KeycloakSession session) {
+        return new RealmResourceProvider() {
+            public Object getResource() {
+                throw new jakarta.ws.rs.NotFoundException();
+            }
+
+            public void close() {
+            }
+        };
     }
 
     @Override
     public void init(Config.Scope config) {
-        try {
-            System.out.println("Here in AccessRealmResourceProviderFactory");
-            consumer =
-                    new AccessGrantConsumer(
-                            new AccessGrantService(
-                                    List.of(
-                                            new RoleGrantHandler(),
-                                            new ResourceGrantHandler()
-                                    )
-                            ),
-                            "rabbitmq",
-                            5672,
-                            "admin",
-                            "admin"
-                    );
-
-            consumer.start();
-        } catch (Exception e) {
-            System.out.println("Catch exception: " + e.getMessage());
-            throw new RuntimeException(
-                    "Could not start RabbitMQ consumer",
-                    e
-            );
-        }
     }
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        consumer.setSessionFactory(factory);
+        consumer = new AccessGrantConsumer(new AccessGrantService(List.of(new RoleGrantHandler(), new ClientRoleGrantHandler(), new ResourceGrantHandler())), factory);
+        try {
+            consumer.start();
+        } catch (Exception e) {
+            consumer.close();
+            throw new IllegalStateException("Cannot start grant consumer", e);
+        }
     }
 
     @Override
     public void close() {
+        if (consumer != null) consumer.close();
     }
-
 }

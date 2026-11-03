@@ -1,9 +1,7 @@
 package com.company.accessManagement.jpa;
 
-import com.company.accessManagement.domain.entity.AccessRequest;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProvider;
 
-import java.util.Collections;
 import java.util.List;
 
 public class AccessJpaEntityProvider implements JpaEntityProvider {
@@ -11,7 +9,7 @@ public class AccessJpaEntityProvider implements JpaEntityProvider {
     @Override
     public List<Class<?>> getEntities() {
         System.out.println("Loading Access JPA Entities");
-        return Collections.singletonList(AccessRequest.class);
+        return List.of();
     }
 
     @Override

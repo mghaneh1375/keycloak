@@ -3,140 +3,89 @@ package com.company.accessManagement.messaging;
 import com.company.accessManagement.dto.AccessGrantRequestedEvent;
 import com.company.accessManagement.service.AccessGrantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rabbitmq.client.*;
-import org.keycloak.models.KeycloakSession;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import org.jboss.logging.Logger;
 import org.keycloak.models.KeycloakSessionFactory;
 
 import java.nio.charset.StandardCharsets;
 
-public class AccessGrantConsumer {
+public class AccessGrantConsumer implements AutoCloseable {
+    private static final Logger LOG = Logger.getLogger(AccessGrantConsumer.class);
+    private static final String QUEUE = "access-request-approved";
+    private static final String EXCHANGE = "access-management-exchange";
+    private static final String ROUTING_KEY = "access-request.approved";
+    private final AccessGrantService service;
+    private final KeycloakSessionFactory sessions;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private Connection connection;
+    private Channel channel;
 
-    private static final String QUEUE = "access.grant.request";
-    private KeycloakSessionFactory sessionFactory;
-    private final ObjectMapper objectMapper;
-    private final AccessGrantService accessGrantService;
-
-    private final String host;
-    private final int port;
-    private final String username;
-    private final String password;
-
-    public AccessGrantConsumer(
-            AccessGrantService accessGrantService,
-            String host,
-            int port,
-            String username,
-            String password
-    ) {
-        this.objectMapper = new ObjectMapper();
-        this.accessGrantService = accessGrantService;
-
-        this.host = host;
-        this.port = port;
-        this.username = username;
-        this.password = password;
+    public AccessGrantConsumer(AccessGrantService service, KeycloakSessionFactory sessions) {
+        this.service = service;
+        this.sessions = sessions;
     }
 
     public void start() throws Exception {
-
-        System.out.println("Start AccessGrantConsumer");
         ConnectionFactory factory = new ConnectionFactory();
-
-        factory.setHost(host);
-        factory.setPort(port);
-        factory.setUsername(username);
-        factory.setPassword(password);
-
-        Connection connection = factory.newConnection();
-        Channel channel = connection.createChannel();
-
-        channel.queueDeclare(
-                QUEUE,
-                true,
-                false,
-                false,
-                null
-        );
-
+        factory.setHost(System.getenv().getOrDefault("ACCESS_RABBIT_HOST", "localhost"));
+        factory.setPort(Integer.parseInt(System.getenv().getOrDefault("ACCESS_RABBIT_PORT", "5672")));
+        factory.setUsername(System.getenv().getOrDefault("ACCESS_RABBIT_USERNAME", "guest"));
+        factory.setPassword(System.getenv().getOrDefault("ACCESS_RABBIT_PASSWORD", "guest"));
+        connection = factory.newConnection();
+        channel = connection.createChannel();
+        channel.exchangeDeclare(EXCHANGE, "topic", true);
+        channel.queueDeclare(QUEUE, true, false, false, null);
+        channel.queueBind(QUEUE, EXCHANGE, ROUTING_KEY);
         channel.basicQos(1);
-
-        DeliverCallback callback =
-                (consumerTag, delivery) -> {
-                    System.out.println("In delivery");
-                    long deliveryTag =
-                            delivery.getEnvelope()
-                                    .getDeliveryTag();
-
-                    System.out.println("DElivery tag is " + deliveryTag);
-
-                    try {
-                        String json =
-                                new String(
-                                        delivery.getBody(),
-                                        StandardCharsets.UTF_8
-                                );
-
-                        AccessGrantRequestedEvent event =
-                                objectMapper.readValue(
-                                        json,
-                                        AccessGrantRequestedEvent.class
-                                );
-
-                        System.out.println("pre handle");
-                        System.out.println(json);
-                        handle(event);
-
-                        System.out.println("send basicAck");
-                        channel.basicAck(
-                                deliveryTag,
-                                false
-                        );
-                    } catch (Exception e) {
-                        System.out.println("Heyyy in exception");
-                        e.printStackTrace();
-                        channel.basicNack(
-                                deliveryTag,
-                                false,
-                                true
-                        );
-                    }
-                };
-
-        channel.basicConsume(
-                QUEUE,
-                false,
-                callback,
-                consumerTag -> {
-                }
-        );
-    }
-
-    public void setSessionFactory(KeycloakSessionFactory sessionFactory) {
-        this.sessionFactory = sessionFactory;
+        channel.basicConsume(QUEUE, false, (tag, delivery) -> {
+            long id = delivery.getEnvelope().getDeliveryTag();
+            try {
+                var event = mapper.readValue(
+                        new String(delivery.getBody(), StandardCharsets.UTF_8),
+                        AccessGrantRequestedEvent.class
+                );
+                handle(event);
+                channel.basicAck(id, false);
+            } catch (Exception e) {
+                LOG.error("Access grant failed; requeuing", e);
+                channel.basicNack(id, false, true);
+            }
+        }, tag -> {
+        });
+        LOG.infof("Access grant consumer started: queue=%s, exchange=%s, routingKey=%s",
+                QUEUE, EXCHANGE, ROUTING_KEY);
     }
 
     private void handle(AccessGrantRequestedEvent event) {
-        System.out.println("In handle");
-        KeycloakSession session = null;
-        try {
-            session = sessionFactory.create();
+        try (var session = sessions.create()) {
             session.getTransactionManager().begin();
-            accessGrantService.grant(
-                    session,
-                    event
-            );
-            session.getTransactionManager().commit();
-        } catch (Exception e) {
-            System.out.println("In exception " + e.getMessage());
-            e.printStackTrace();
-            if (session != null && session.getTransactionManager().isActive()) {
-                session.getTransactionManager().rollback();
+            try {
+                service.grant(session, event);
+                session.getTransactionManager().commit();
+            } catch (RuntimeException e) {
+                if (session.getTransactionManager().isActive()) {
+                    session.getTransactionManager().rollback();
+                }
+                throw e;
             }
+        }
+    }
 
-//            throw e;
-        } finally {
-            if(session != null)
-                session.close();
+    @Override
+    public void close() {
+        try {
+            if (channel != null && channel.isOpen()) {
+                channel.close();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            if (connection != null && connection.isOpen()) {
+                connection.close();
+            }
+        } catch (Exception ignored) {
         }
     }
 }

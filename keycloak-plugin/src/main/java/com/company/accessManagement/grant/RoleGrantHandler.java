@@ -34,7 +34,7 @@ public class RoleGrantHandler implements AccessGrantHandler {
         session.getContext().setRealm(realm);
         UserModel user =
                 session.users()
-                        .getUserById(
+                        .getUserByUsername(
                                 realm,
                                 accessGrantRequestedEvent.getRequesterId()
                         );

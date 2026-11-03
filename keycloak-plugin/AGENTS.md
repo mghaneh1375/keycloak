@@ -1,0 +1,17 @@
+# Keycloak grant SPI
+
+Inherit the repository AGENTS.md. This plugin now handles grant consumption only; portal-owned intake replaces old access-request APIs and persistence. JPA and Flyway infrastructure is intentionally preserved even though there are currently no plugin entities or active migration execution. Historical SQL and existing database tables are retained. The sibling outbox publisher and Camunda projects are legacy and unchanged.
+
+Java 21, Keycloak SPI 26.3.0. Build here with `mvn -Dmaven.test.skip=true package` when tests are excluded by the task. The server distribution is 26.8.1; live compatibility requires server verification. Packaging does not install the jar.
+
+AccessRealmResourceProviderFactory retains provider ID access only for lifecycle and returns 404 for old endpoints. Its postInit creates the consumer with an initialized session factory. close releases AMQP resources. Keep the realm-provider service registration. The old intake exception-mapper registration is inactive.
+
+Preserve AccessJpaEntityProvider, AccessJpaEntityProviderFactory, their JPA SPI service registration, FlywayMigrator and the supporting build dependencies as infrastructure for future use. AccessRequest and OutboxEvent entities have been removed; getEntities() currently returns an empty list, getChangelogLocation() returns null, and no application code invokes FlywayMigrator.migrate(). Historical V2/V3 SQL files remain under src/main/resources/db/migration, but the current grant-only lifecycle does not execute them. Do not remove this infrastructure merely because it has no current entities or migration execution, and do not introduce entities or activate migrations without task scope requiring them.
+
+AccessGrantConsumer consumes the existing durable access-request-approved queue declared by the Flowable wrapper, bound to topic exchange access-management-exchange with routing key access-request.approved. Queue names and routing keys are distinct contracts; do not replace the dotted routing key with the hyphenated queue name. Configure ACCESS_RABBIT_HOST/PORT/USERNAME/PASSWORD. ACK follows transaction commit; failures roll back and requeue. Permanent failures need operator attention.
+
+The META-INF/services/org.keycloak.services.resource.RealmResourceProviderFactory registration must contain the uncommented AccessRealmResourceProviderFactory class name; commenting it out prevents postInit and consumer startup entirely. Successful subscription logs "Access grant consumer started" with queue/exchange/routing key. Rebuild and install the JAR into the server's providers directory and restart Keycloak to load changes; an already installed JAR does not follow source edits. Startup consumes pending approved messages and may apply identity grants. No old queue migration, message move or purge is performed by the plugin.
+
+AccessGrantRequestedEvent uses string requestId, requesterId as username, clientId as public Client ID. REALM_ROLE, CLIENT_ROLE and RESOURCE handlers resolve identity internally. Role grants are idempotent. RESOURCE expects internal resourceServerId/targetId; do not assume the sample approval payload supplies these. Do not reintroduce intake tables or workflow orchestration into Keycloak.
+
+See ../../flowable-portal/AGENTS.md for coordinated rollout context. The architecture's additional final human grant confirmation remains future work; current handlers apply approved commands directly.

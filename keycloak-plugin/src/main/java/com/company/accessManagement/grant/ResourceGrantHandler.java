@@ -115,8 +115,10 @@ public class ResourceGrantHandler implements AccessGrantHandler {
                         + event.getRequestId()
         );
 
+        var user = session.users().getUserByUsername(realm, event.getRequesterId());
+        if (user == null) throw new IllegalArgumentException("Requester not found");
         Set<String> tmp = new HashSet<>();
-        tmp.add(event.getRequesterId());
+        tmp.add(user.getId());
         policyRepresentation.setUsers(tmp);
 
         Policy policy =

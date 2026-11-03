@@ -26,12 +26,12 @@ public class AccessGrantService {
             AccessGrantRequestedEvent event
     ) {
         AccessGrantHandler handler =
-                handlers.get(event.getTargetType());
+                handlers.get(event.getTargetType().name().toUpperCase());
 
         if (handler == null) {
             throw new IllegalArgumentException(
                     "Unsupported grant type: "
-                            + event.getTargetType()
+                            + event.getTargetType().name()
             );
         }
 
