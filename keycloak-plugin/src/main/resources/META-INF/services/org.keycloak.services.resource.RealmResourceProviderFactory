@@ -1,1 +1,2 @@
-com.company.accessManagement.provider.AccessRealmResourceProviderFactory
+com.company.accessManagement.factory.AccessRealmResourceProviderFactory
+com.company.accessManagement.factory.SampleResourceProviderFactory

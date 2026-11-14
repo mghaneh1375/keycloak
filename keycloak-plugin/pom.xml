@@ -35,6 +35,18 @@
         </dependency>
 
         <dependency>
+            <groupId>org.eclipse.microprofile.openapi</groupId>
+            <artifactId>microprofile-openapi-api</artifactId>
+            <version>4.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-services</artifactId>
         </dependency>
@@ -142,6 +154,55 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.smallrye</groupId>
+                <artifactId>smallrye-open-api-maven-plugin</artifactId>
+                <version>4.4.1</version>
+
+                <configuration>
+
+                    <!-- Generated file location -->
+                    <outputDirectory>
+                        ${project.build.outputDirectory}/META-INF/resources
+                    </outputDirectory>
+
+                    <!-- Generated file name -->
+                    <schemaFilename>access-openapi</schemaFilename>
+
+                    <!-- Only generate JSON -->
+                    <outputFileTypeFilter>JSON</outputFileTypeFilter>
+
+                    <!-- Packages to scan -->
+                    <scanPackages>
+                        com.company.accessManagement
+                    </scanPackages>
+
+                    <!-- OpenAPI metadata -->
+                    <infoTitle>Access Management API</infoTitle>
+                    <infoVersion>${project.version}</infoVersion>
+                    <infoDescription>
+                        Keycloak Access Management SPI
+                    </infoDescription>
+
+                    <scanners>
+                        <scanner>JAX-RS</scanner>
+                    </scanners>
+
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>generate-openapi</id>
+
+                        <!-- Run after Java compilation -->
+                        <phase>process-classes</phase>
+
+                        <goals>
+                            <goal>generate-schema</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

@@ -1,7 +1,8 @@
-package com.company.accessManagement.provider;
+package com.company.accessManagement.factory;
 
 import com.company.accessManagement.grant.*;
 import com.company.accessManagement.messaging.AccessGrantConsumer;
+import com.company.accessManagement.provider.AccessResourceProvider;
 import com.company.accessManagement.service.AccessGrantService;
 import org.keycloak.Config;
 import org.keycloak.models.*;
@@ -22,14 +23,7 @@ public class AccessRealmResourceProviderFactory implements RealmResourceProvider
 
     @Override
     public RealmResourceProvider create(KeycloakSession session) {
-        return new RealmResourceProvider() {
-            public Object getResource() {
-                throw new jakarta.ws.rs.NotFoundException();
-            }
-
-            public void close() {
-            }
-        };
+        return new AccessResourceProvider();
     }
 
     @Override
